@@ -1,7 +1,7 @@
 import sys
 from fileinput import filename
 
-from Parser import *
+from Parser import Parser
 from Executer import Executer
 
 
@@ -34,13 +34,17 @@ def main(argv):
         else:
 
             for inp in inputs:
-                if parser.validate_syntax(inp):
+                if parser.validate(inp):
                     pass
 
     # manual command/query input in the terminal
     else:
         while True:
-            inputs = input()
+            inp = input()
+
+            if parser.validate(inp):
+                pass
+
 
     # while True:
     #     inp = input()

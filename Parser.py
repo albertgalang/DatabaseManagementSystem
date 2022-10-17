@@ -1,4 +1,5 @@
 from Application.Commands.Commands import commands, expects_params_commands, data_access_commands, database_entities
+from Services.Utils import clean
 
 
 # Parser class
@@ -36,23 +37,42 @@ class Parser:
         return trimmed
 
     # validates the syntax of the input
-    def validate_syntax(self, tokens):
-        if tokens[0] not in commands:
-            return False
-        if tokens[-1] is not ";":
-            return False
+    # def validate_syntax(self, tokens):
+    #     if tokens[0] not in commands:
+    #         return False
+    #     if tokens[-1] is not ";":
+    #         return False
+    #
+    #     open_parenthesis = 0
+    #     for token in tokens[1:]:
+    #         if token is "(":
+    #             open_parenthesis += 1
+    #         if token is ")":
+    #             open_parenthesis -= 1
+    #
+    #     if open_parenthesis is not 0:
+    #         return False
+    #
+    #     return True
 
-        open_parenthesis = 0
-        for token in tokens[1:]:
-            if token is "(":
-                open_parenthesis += 1
-            if token is ")":
-                open_parenthesis -= 1
-
-        if open_parenthesis is not 0:
+    # Testing new validate
+    # Validates the input commands
+    # return true or false
+    def validate(self, inputs):
+        try:
+            queries = self.get_queries(clean(inputs, "string"))
+        except ValueError as e:
+            print(f"Invalid syntax: {e}")
             return False
+        pass
 
-        return True
+    def get_queries(self, inputs):
+        queries = inputs.replace(";", ";%").split("%")
+
+        if queries[-1] is not '':
+            raise ValueError("Missing ';'")
+
+        return queries[:-1]
 
     # Validates the actual query structure.
     def validate_query(self, tokens):
