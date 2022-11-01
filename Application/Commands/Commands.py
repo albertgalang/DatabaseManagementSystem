@@ -1,6 +1,9 @@
 import json
 import os
 
+from Application.Models.Table import Table, serialize, deserialize
+from Application.Variables import DBMS_PATH
+
 # STATIC variables
 # used to check for command words
 commands = [
@@ -16,7 +19,10 @@ database_entities = [
 ]
 data_access_commands = [
     "select",
-    "from"
+    "from",
+    "where",
+    # "update",
+    # "insert"
 ]
 expects_params_commands = [
     "table",
@@ -25,6 +31,194 @@ expects_params_commands = [
     "from",
     "add"
 ]
+
+metadata_commands = [
+    "create",
+    "drop",
+    "alter",
+    "use"
+]
+
+data_change_commands = [
+    "update",
+    "delete",
+    "set",
+    "where"
+]
+
+insert_commands = [
+    "insert",
+    "into",
+    "values"
+]
+
+# data access query execution
+def data_access(query, settings):
+    if settings["database"] is None:
+        print("No database being used.")
+        return
+
+    # from
+    table = get_table(query.from_key, settings)
+
+    # where
+    if query.where_key is not None and query.where_key != []:
+        inequalities = {
+            "=": equal,
+            "!=": not_equal,
+            ">": greater_than,
+            "<": less_than
+        }
+        aggregated_records = []
+        key = query.where_key[0]
+        ineq = query.where_key[1]
+        b = query.where_key[2]
+        key_index = list(table.metadata).index(key)
+        for record in table.records:
+            a = record[key_index]
+            if inequalities[ineq](a, b):  # if true
+                aggregated_records.append(record)
+
+    if query.select_key[0] is not '*':
+        keys = []
+        for column in query.select_key:
+            column_index = list(table.metadata).index(column)
+            keys.append(column_index)
+
+        final_table = []
+        for record in aggregated_records:
+            transformed_record = []
+            for key in keys:
+                transformed_record.append(record[key])
+            final_table.append(transformed_record)
+
+        new_metadata = {}
+        for column in query.select_key:
+            new_metadata[column] = table.metadata[column]
+
+        return Table(new_metadata, final_table)
+
+    # return original table if no select/where
+    return table
+
+# check inequality functions below
+def equal(a, b):
+    return a == b
+    pass
+
+def not_equal(a, b):
+    return a != b
+    pass
+
+def greater_than(a, b):
+    return float(a) > float(b)
+
+def less_than(a, b):
+    return float(a) < float(b)
+
+
+# update type query execution
+def update(query, settings):
+    if settings["database"] is None:
+        print("No database being used.")
+        return
+
+    table = get_table([query.from_key], settings)
+
+    # where
+    if query.where_key is not None and query.where_key != []:
+        inequalities = {
+            "=": equal,
+            "!=": not_equal,
+            ">": greater_than,
+            "<": less_than
+        }
+        counter = 0
+        key = query.where_key[0]
+        ineq = query.where_key[1]
+        b = query.where_key[2]
+        key_index = list(table.metadata).index(key)
+        set_key = query.set_key[0]
+        set_key_index = list(table.metadata).index(set_key)
+        for record in table.records:
+            a = record[key_index]
+            if inequalities[ineq](a, b):
+                counter += 1
+                record[set_key_index] = query.set_key[2]
+
+        database = settings["database"]
+        table_title = query.from_key
+        with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
+            table_file.write(json.dumps(serialize(table)))
+
+        print(f"{counter} {'records' if counter > 1 else 'record'} modified.")
+
+
+# delete type query execution
+def delete(query, settings):
+    if settings["database"] is None:
+        print("No database being used.")
+        return
+
+    table = get_table([query.from_key], settings)
+
+    # where
+    if query.where_key is not None and query.where_key != []:
+        inequalities = {
+            "=": equal,
+            "!=": not_equal,
+            ">": greater_than,
+            "<": less_than
+        }
+        counter = 0
+        new_records = []
+        key = query.where_key[0]
+        ineq = query.where_key[1]
+        b = query.where_key[2]
+        key_index = list(table.metadata).index(key)
+        for record in table.records:
+            a = record[key_index]
+            if inequalities[ineq](a, b):
+                counter += 1
+                continue
+            new_records.append(record)
+
+        database = settings["database"]
+        table_title = query.from_key
+        new_table = Table(table.metadata, new_records)
+        with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
+            table_file.write(json.dumps(serialize(new_table)))
+
+        print(f"{counter} {'records' if counter > 1 else 'record'} deleted.")
+
+
+# insert type query execution
+def insert(query, settings):
+    if settings["database"] is None:
+        print("No database being used.")
+        return
+
+    table_title = query.title
+    table = get_table([table_title], settings)
+    table.records.append(query.values)
+
+    database = settings["database"]
+    os.system(f"cd {DBMS_PATH}/{database} && touch {table_title}.txt")
+    with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
+        table_file.write(json.dumps(serialize(table)))
+    print("1 new record inserted.")
+
+
+# retrieve table
+def get_table(table, settings):
+    database = settings["database"]
+    check_path = os.path.abspath(f"{DBMS_PATH}/{database.strip()}/{table[0]}.txt")
+    is_exist = os.path.exists(check_path)
+    if is_exist:
+        with open(f"./DBMS/{database.strip()}/{table[0]}.txt") as table:
+            table_serialized = json.load(table)
+            table = deserialize(table_serialized)
+        return table
 
 
 # Selects the database to use
@@ -71,38 +265,30 @@ def drop_database(title, settings):
         print(f"Database {title} does not exist.")
 
 
-# Creates a table in the selected database
-# It creates a file with its data
-def create_table(params, database):
-    parameters = params.split()
-    columns = {}
-    prop_title = ""
-    prop_type = ""
-    for prop in parameters[1:]:
-        if prop_title and prop_type:
-            if prop_type == "varchar" or prop_type == "char":
-                prop_type += f'({parameters[parameters.index(prop_type) + 2]})'
-            columns[prop_title] = prop_type
-            prop_title = ""
-            prop_type = ""
-        if prop != "(" and prop != ")":
-            if not prop_title:
-                prop_title = prop
-            else:
-                prop_type = prop
-
-    if database:
-        check_path = os.path.abspath(f"./DBMS/{database.strip()}/{parameters[0]}.txt")
-        is_exist = os.path.exists(check_path)
-        if is_exist:
-            print(f"!Failed to create table {parameters[0]} because it already exist.")
-        else:
-            os.system(f'cd DBMS/{database.strip()} && touch {parameters[0]}.txt')
-            with open(f'DBMS/{database.strip()}/{parameters[0]}.txt', 'w') as table:
-                table.write(json.dumps(columns))
-            print(f"Table {parameters[0]} created.")
-    else:
+def create_table(title, params, settings):
+    if settings["database"] is None:
         print("No database being used.")
+        return
+
+    database = settings["database"]
+    table_title = title
+    check_path = os.path.abspath(f"./DBMS/{database}/{table_title}.txt")
+    is_exist = os.path.exists(check_path)
+    if is_exist:
+        print(f"!Failed to create table {table_title} because it already exist.")
+        return
+
+    columns = {}
+    for param in params:
+        data = param.split(' ')
+        columns[data[0]] = data[1]
+
+    table = Table(columns, [])
+
+    os.system(f"cd DBMS/{database} && touch {table_title}.txt")
+    with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
+        table_file.write(json.dumps(serialize(table)))
+    print(f"Table {table_title} created.")
 
 
 # Deletes a table from the selected database
@@ -130,17 +316,16 @@ def alter_table(title, params, settings):
         print("No database being used.")
         return
 
-    check_path = os.path.abspath(f"./DBMS/{database.strip()}/{title}.txt")
+    check_path = os.path.abspath(f"{DBMS_PATH}/{database}/{title}.txt")
     is_exist = os.path.exists(check_path)
     if is_exist:
         with open(f"./DBMS/{database.strip()}/{title}.txt") as table:
             data = json.load(table)
 
-
         columns = {}
         prop_title = ""
         prop_type = ""
-        for prop in params.split():
+        for prop in params[1].split():
             if prop_title and prop_type:
                 if prop_type == "varchar" or prop_type == "char":
                     prop_type += f'({params.split()[params.split().index(prop_type) + 2]})'

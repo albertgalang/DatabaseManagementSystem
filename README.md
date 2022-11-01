@@ -8,3 +8,5 @@ Simple DBMS Demo
 - in the terminal run the Main.py --> python3 Main.py
 - This will prompt a input. Type in the DBMS commands.
 - Copy paste of many commands work.
+
+- The new release now allows for file parsing --> python3 Main.py file.txt
