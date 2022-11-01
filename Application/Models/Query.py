@@ -1,3 +1,6 @@
+# Query types allows to organize different queries.
+# This also eases the mapping of execution.
+
 from Application.Commands.Commands import data_access_commands, data_change_commands
 
 
@@ -37,6 +40,8 @@ primitives_expects_param = ["varchar", "char"]
 actions = ["add", "and"]
 
 
+# Builds a query type.
+# Returns a query type with the appropriate values.
 def query_builder(tokens, query_type):
     if query_type is "metadata":
         qt, e, t, p = (None,) * 4
@@ -153,6 +158,8 @@ def query_builder(tokens, query_type):
         return Insert(t, v)
 
 
+# retrieves parameters from () encapsulated values.
+# isolates from the higher level parameters.
 def get_params(tokens):
     p = []
     append = True

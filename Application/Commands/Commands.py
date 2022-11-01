@@ -53,6 +53,7 @@ insert_commands = [
 ]
 
 # data access query execution
+# isolates clauses (where, from, etc)
 def data_access(query, settings):
     if settings["database"] is None:
         print("No database being used.")
@@ -118,6 +119,7 @@ def less_than(a, b):
 
 
 # update type query execution
+# isolates clauses (where, from, etc)
 def update(query, settings):
     if settings["database"] is None:
         print("No database being used.")
@@ -155,6 +157,7 @@ def update(query, settings):
 
 
 # delete type query execution
+# isolates clauses (where, from, etc)
 def delete(query, settings):
     if settings["database"] is None:
         print("No database being used.")
@@ -353,7 +356,7 @@ def alter_table(title, params, settings):
         print(f"table {title} does not exist.")
 
 
-# Query a table
+# [Obsolete] Query a table
 # Allows to access the data inside a table from a database
 # Works with Select command
 def table_query(select_cond, from_table, settings):
