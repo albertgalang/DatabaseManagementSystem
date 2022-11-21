@@ -21,6 +21,7 @@ data_access_commands = [
     "select",
     "from",
     "where",
+    "on"
     # "update",
     # "insert"
 ]
@@ -52,6 +53,14 @@ insert_commands = [
     "values"
 ]
 
+join_commands = {
+    "join",
+    "inner",
+    "outer",
+    "left",
+    "right"
+}
+
 # data access query execution
 # isolates clauses (where, from, etc)
 def data_access(query, settings):
@@ -59,60 +68,280 @@ def data_access(query, settings):
         print("No database being used.")
         return
 
+    aggregated_records = []
+
+    # processing of non join command query with multiple from parameters.
+    if len(query.from_key) > 1 and len(query.join_key) is 0:
+        # from
+        tables = get_tables(query.from_key, settings)
+
+        # where
+        if query.where_key is not None and query.where_key != []:
+            a_key = query.where_key[0]
+            ineq = query.where_key[1]
+            b_key = query.where_key[2]
+            tables_keys = list(tables.keys())
+
+            # loop through each record of tbl1 and check against each record of tbl2
+            # join type aggregation
+            for tbl1_record in tables[tables_keys[0]].records:
+                for tbl2_record in tables[tables_keys[1]].records:
+                    a = b = None
+                    if '.' in a_key:
+                        alias = a_key.split('.')[0]
+                        key = a_key.split('.')[1]
+                        a_key_index = list(tables[alias].metadata)
+                        a_key_index = [item.lower() for item in a_key_index].index(key)
+                        a = tbl1_record[a_key_index]
+
+                    if '.' in b_key:
+                        alias = b_key.split('.')[0]
+                        key = b_key.split('.')[1]
+                        b_key_index = list(tables[alias].metadata)
+                        b_key_index = [item.lower() for item in b_key_index].index(key)
+                        b = tbl2_record[b_key_index]
+
+                    if inequalities[ineq](a, b):
+                        record = tbl1_record + tbl2_record
+                        aggregated_records.append(record)
+
+        # select
+        # testing select specific columns
+        if query.select_key[0] is not '*':
+            tables_keys = tables.keys()
+            keys = []
+
+        return Table({**tables[tables_keys[0]].metadata, **tables[tables_keys[1]].metadata}, aggregated_records)
+
+    # processing of non join command query with single from parameter.
+    elif len(query.from_key) is 1 and len(query.join_key) is 0:
+        # from
+        table = get_table(query.from_key, settings)
+
+        # where
+        if query.where_key is not None and query.where_key != []:
+            key = query.where_key[0]
+            ineq = query.where_key[1]
+            b = query.where_key[2]
+            key_index = list(table.metadata).index(key)
+            for record in table.records:
+                a = record[key_index]
+                if inequalities[ineq](a, b):  # if true
+                    aggregated_records.append(record)
+
+        if query.select_key[0] is not '*':
+            keys = []
+            for column in query.select_key:
+                column_index = list(table.metadata).index(column)
+                keys.append(column_index)
+
+            final_table = []
+            for record in aggregated_records:
+                transformed_record = []
+                for key in keys:
+                    transformed_record.append(record[key])
+                final_table.append(transformed_record)
+
+            new_metadata = {}
+            for column in query.select_key:
+                new_metadata[column] = table.metadata[column]
+
+            return Table(new_metadata, final_table)
+
+        # return original table if no select/where
+        return table
+
+    # processing of join command query
+    if query.join_key is not None and query.join_key != []:
+        tables = get_tables(query.from_key, settings)
+        tables_keys = list(tables.keys())
+
+        # detect inner or outer commands and call the proper join function.
+        if "inner" in query.join_key:
+            aggregated_records = inner_join(query, settings)
+        if "outer" in query.join_key:
+            aggregated_records = outer_join(query, settings)
+
+        # select
+        # testing select specific columns
+        if query.select_key[0] is not '*':
+            tables_keys = tables.keys()
+            keys = []
+
+        return Table({**tables[tables_keys[0]].metadata, **tables[tables_keys[1]].metadata}, aggregated_records)
+
+
+# function for inner join queries.
+# uses nested for loops to process the tables.
+def inner_join(query, settings):
+    # get tables from the join clause
     # from
-    table = get_table(query.from_key, settings)
+    tables = get_tables(query.from_key, settings)
 
-    # where
-    if query.where_key is not None and query.where_key != []:
-        inequalities = {
-            "=": equal,
-            "!=": not_equal,
-            ">": greater_than,
-            "<": less_than
-        }
+    # on -- condition
+    if query.on_key is not None and query.on_key != []:
+        a_key = query.on_key[0]
+        ineq = query.on_key[1]
+        b_key = query.on_key[2]
+        tables_keys = list(tables.keys())
+
         aggregated_records = []
-        key = query.where_key[0]
-        ineq = query.where_key[1]
-        b = query.where_key[2]
-        key_index = list(table.metadata).index(key)
-        for record in table.records:
-            a = record[key_index]
-            if inequalities[ineq](a, b):  # if true
-                aggregated_records.append(record)
 
-    if query.select_key[0] is not '*':
-        keys = []
-        for column in query.select_key:
-            column_index = list(table.metadata).index(column)
-            keys.append(column_index)
+        # loop through each record of tbl1 and check against each record of tbl2
+        # join type aggregation
+        for tbl1_record in tables[tables_keys[0]].records:
+            for tbl2_record in tables[tables_keys[1]].records:
+                a = b = None
+                if '.' in a_key:
+                    alias = a_key.split('.')[0]
+                    key = a_key.split('.')[1]
+                    a_key_index = list(tables[alias].metadata)
+                    a_key_index = [item.lower() for item in a_key_index].index(key)
+                    a = tbl1_record[a_key_index]
 
-        final_table = []
-        for record in aggregated_records:
-            transformed_record = []
-            for key in keys:
-                transformed_record.append(record[key])
-            final_table.append(transformed_record)
+                if '.' in b_key:
+                    alias = b_key.split('.')[0]
+                    key = b_key.split('.')[1]
+                    b_key_index = list(tables[alias].metadata)
+                    b_key_index = [item.lower() for item in b_key_index].index(key)
+                    b = tbl2_record[b_key_index]
 
-        new_metadata = {}
-        for column in query.select_key:
-            new_metadata[column] = table.metadata[column]
+                if inequalities[ineq](a, b):
+                    record = tbl1_record + tbl2_record
+                    aggregated_records.append(record)
 
-        return Table(new_metadata, final_table)
+        return aggregated_records
 
-    # return original table if no select/where
-    return table
+
+# function for outer join queries.
+# uses nested for loops to process the tables.
+def outer_join(query, settings):
+    # get tables from the join clause
+    # from
+    tables = get_tables(query.from_key, settings)
+
+    # on -- condition
+    if query.on_key is not None and query.on_key != []:
+        a_key = query.on_key[0]
+        ineq = query.on_key[1]
+        b_key = query.on_key[2]
+        tables_keys = list(tables.keys())
+
+        aggregated_records = []
+
+        # loop through each record of tbl1 and check against each record of tbl2
+        # join type aggregation
+        for tbl1_record in tables[tables_keys[0]].records:
+            for tbl2_record in tables[tables_keys[1]].records:
+                a = b = None
+                if '.' in a_key:
+                    alias = a_key.split('.')[0]
+                    key = a_key.split('.')[1]
+                    a_key_index = list(tables[alias].metadata)
+                    a_key_index = [item.lower() for item in a_key_index].index(key)
+                    a = tbl1_record[a_key_index]
+
+                if '.' in b_key:
+                    alias = b_key.split('.')[0]
+                    key = b_key.split('.')[1]
+                    b_key_index = list(tables[alias].metadata)
+                    b_key_index = [item.lower() for item in b_key_index].index(key)
+                    b = tbl2_record[b_key_index]
+
+                # detect left or right join and create the proper initial table.
+                # does not include duplicates of no match rows.
+                if "left" in query.join_key:
+                    if inequalities[ineq](a, b):
+                        record = tbl1_record + tbl2_record
+                        aggregated_records.append(record)
+                    else:
+                        record = tbl1_record + [None]*len(tbl2_record)
+                        if record not in aggregated_records:
+                            aggregated_records.append(record)
+
+                if "right" in query.join_key:
+                    if inequalities[ineq](a, b):
+                        record = tbl1_record + tbl2_record
+                        aggregated_records.append(record)
+                    else:
+                        record = [None]*len(tbl1_record) + tbl2_record
+                        if record not in aggregated_records:
+                            aggregated_records.append(record)
+
+        # clean up table to have the proper output.
+        # removes a no match row if other matches of the same key exist.
+        if "left" in query.join_key:
+            if '.' in a_key:
+                alias = a_key.split('.')[0]
+                key = a_key.split('.')[1]
+                a_tbl_len = len(list(tables[alias].metadata))
+                a_key_index = list(tables[alias].metadata)
+                a_key_index = [item.lower() for item in a_key_index].index(key)
+
+            if '.' in b_key:
+                alias = b_key.split('.')[0]
+                key = b_key.split('.')[1]
+                b_tbl_len = len(list(tables[alias].metadata))
+                b_key_index = list(tables[alias].metadata)
+                b_key_index = [item.lower() for item in b_key_index].index(key)
+
+            tbl1_start_index = 0
+            tbl2_start_index = a_tbl_len
+
+            cleaned_aggregated_record = []
+            for aggregated_record in aggregated_records:
+                # Look for empty joins (right side)
+                if [None]*b_tbl_len == aggregated_record[tbl2_start_index:]:
+                    current_record_index = aggregated_records.index(aggregated_record)
+                    # case: when it is the first record
+                    if aggregated_record == aggregated_records[0]:
+                        next_record = aggregated_records[current_record_index + 1]
+                        # check if next record tbl2 side is empty. No match from join
+                        if next_record[tbl2_start_index:] != [None]*b_tbl_len:
+                            # check if next record tbl1 side is the same as the current record tbl1 side
+                            if next_record[:tbl2_start_index] == aggregated_record[:tbl2_start_index]:
+                                continue
+                    # case: when it is the last record
+                    elif aggregated_record == aggregated_records[-1]:
+                        prev_record = aggregated_records[-2]
+                        # check if prev record tbl2 side is empty. No match from join
+                        if prev_record[tbl2_start_index:] != [None]*b_tbl_len:
+                            # check if prev record tbl1 side is the same as the current record tbl1 side
+                            if prev_record[:tbl2_start_index] == aggregated_record[:tbl2_start_index]:
+                                continue
+                    # case: general
+                    else:
+                        prev_record = aggregated_records[current_record_index - 1]
+                        # check if prev record tbl2 side is empty. No match from join
+                        if prev_record[tbl2_start_index:] != [None]*b_tbl_len:
+                            # check if prev record tbl1 side is the same as the current record tbl1 side
+                            if prev_record[:tbl2_start_index] == aggregated_record[:tbl2_start_index]:
+                                continue
+                        next_record = aggregated_records[current_record_index + 1]
+                        # check if next record tbl2 side is empty. No match from join
+                        if next_record[tbl2_start_index:] != [None]*b_tbl_len:
+                            # check if next record tbl1 side is the same as the current record tbl1 side
+                            if next_record[:tbl2_start_index] == aggregated_record[:tbl2_start_index]:
+                                continue
+                cleaned_aggregated_record.append(aggregated_record)
+
+        return cleaned_aggregated_record
+
 
 # check inequality functions below
 def equal(a, b):
     return a == b
     pass
 
+
 def not_equal(a, b):
     return a != b
     pass
 
+
 def greater_than(a, b):
     return float(a) > float(b)
+
 
 def less_than(a, b):
     return float(a) < float(b)
@@ -206,7 +435,6 @@ def insert(query, settings):
     table.records.append(query.values)
 
     database = settings["database"]
-    os.system(f"cd {DBMS_PATH}/{database} && touch {table_title}.txt")
     with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
         table_file.write(json.dumps(serialize(table)))
     print("1 new record inserted.")
@@ -222,6 +450,27 @@ def get_table(table, settings):
             table_serialized = json.load(table)
             table = deserialize(table_serialized)
         return table
+
+
+# retrieve tables.
+# multiple from params
+def get_tables(tables, settings):
+    database = settings["database"]
+    tables_instance = {}
+    for table in tables:
+        check_path = os.path.abspath(f"{DBMS_PATH}/{database.strip()}/{table}.txt")
+        is_exist = os.path.exists(check_path)
+        if is_exist:
+            with open(f"{DBMS_PATH}/{database.strip()}/{table}.txt") as _table:
+                _table_serialized = json.load(_table)
+                tables_instance[table] = deserialize(_table_serialized)
+        # else means that the table does not exist. Possibly an alias.
+        else:
+            alias = table
+            i = tables.index(alias)
+            tables_instance[alias] = tables_instance[tables[i - 1]]
+            del tables_instance[tables[i - 1]]
+    return tables_instance
 
 
 # Selects the database to use
@@ -377,3 +626,12 @@ def table_query(select_cond, from_table, settings):
             print(ss[:-2])
     else:
         print(f"table {from_table} does not exist.")
+
+
+# inequalities function delegate
+inequalities = {
+    "=": equal,
+    "!=": not_equal,
+    ">": greater_than,
+    "<": less_than
+}

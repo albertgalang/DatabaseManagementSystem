@@ -32,9 +32,6 @@ def main(argv):
                     print("All done.")
                     return
 
-                if inp[0] == '-':
-                    continue
-
                 # build input
                 if parser.validate(inp) is False:
                     continue
@@ -44,7 +41,8 @@ def main(argv):
 
                 query = parser.parse(query)
                 context = execute.create_context(query, settings)
-                result = context["run"](*context["params"])
+                # result = context["run"](*context["params"])
+                result = execute.run(context)
                 if result:
                     print(result.to_string())
     else:
@@ -64,7 +62,8 @@ def main(argv):
 
             query = parser.parse(query)
             context = execute.create_context(query, settings)
-            result = context["run"](*context["params"])
+            # result = context["run"](*context["params"])
+            result = execute.run(context)
             if result:
                 print(result.to_string())
 

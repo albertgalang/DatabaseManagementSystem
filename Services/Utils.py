@@ -14,3 +14,4 @@ def clean(target, target_type):
 # Testing
 def clean_string(query):
     return query.strip()
+

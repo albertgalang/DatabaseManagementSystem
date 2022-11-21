@@ -18,7 +18,10 @@ class Table:
         records = ""
         for record in self.records:
             for data in record:
-                records += f"{data} | "
+                if data is None:
+                    records += f" | "
+                else:
+                    records += f"{data} | "
             records = records[:-2]
             records += '\n'
 

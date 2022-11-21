@@ -9,7 +9,7 @@ class Executer:
     def __int__(self):
         pass
 
-    # An better abstraction for creating a context for each query type
+    # A better abstraction for creating a context for each query type
     def create_context(self, query, settings):
         context = {}
         if isinstance(query, Metadata):
@@ -48,12 +48,6 @@ class Executer:
         context = {}
         self.command_context[tokens[0]](self, tokens, context, settings)
         return context
-
-    # runs the generated execution context
-    def run(self, query):
-        for key, value in query.items():
-            params = value["params"]
-            value["run"](*params)
 
     # Updated create command context
     def create_command_context(self, query, settings, context):
@@ -97,30 +91,9 @@ class Executer:
             context["run"] = alter_table
             context["params"] = [metadata.title, metadata.params, settings]
 
-        # expects_command = ["create", "drop", "alter", "use"]
-        # expects_params = ["database", "table"]
-        # data_access = ["select", "from", "add"]
-        #
-        # prev_command = ""
-        # command = ""
-        # params = ""
-        # for token in tokens[3:]:
-        #     if token in expects_command:
-        #         prev_command = token
-        #     elif tokens in expects_params:
-        #         command = token
-        #     elif token in data_access:
-        #         command += token + ' '
-        #     elif token == ";":
-        #         continue
-        #     else:
-        #         params += token + " "
-        #
-        # context["alter"] = {
-        #     "run": alter_table,
-        #     "params": [tokens[2], params.strip(), settings]
-        # }
-
+    # runs the generated execution context
+    def run(self, context):
+        return context["run"](*context["params"])
 
     # command context generator function delegate
     command_context = {

@@ -1,7 +1,7 @@
 # Query types allows to organize different queries.
 # This also eases the mapping of execution.
 
-from Application.Commands.Commands import data_access_commands, data_change_commands
+from Application.Commands.Commands import data_access_commands, data_change_commands, join_commands
 
 
 class Metadata:
@@ -13,12 +13,14 @@ class Metadata:
 
 
 class DataAccess:
-    def __init__(self, select_key, from_key, where_key, group_key, order_key):
+    def __init__(self, select_key, from_key, where_key, group_key, order_key, join_key, on_key):
         self.select_key = select_key
         self.from_key = from_key
         self.where_key = where_key
         self.group_key = group_key
         self.order_key = order_key
+        self.join_key = join_key
+        self.on_key = on_key
 
 
 class DataChange:
@@ -68,7 +70,7 @@ def query_builder(tokens, query_type):
         return Metadata(qt, e, t, p)
 
     if query_type is "dataAccess":
-        f, w, g, o, s = (None,) * 5
+        f, w, g, o, s, j, on = (None,) * 7
 
         s = []
         for token in tokens[1:]:
@@ -79,6 +81,8 @@ def query_builder(tokens, query_type):
         f = []
         from_param_start = tokens.index("from") + 1
         for token in tokens[from_param_start:-1]:
+            if token in join_commands:
+                continue
             if token in data_access_commands:
                 break
             f.append(token)
@@ -96,7 +100,28 @@ def query_builder(tokens, query_type):
         except:
             pass
 
-        return DataAccess(s, f, w, g, o)
+        try:
+            j = []
+            join_index = tokens.index("join")
+            for token in tokens[from_param_start:join_index + 1]:
+                if token in join_commands:
+                    j.append(token)
+        except:
+            pass
+
+        try:
+            on = []
+            on_param_start = tokens.index("on") + 1
+            for token in tokens[on_param_start:]:
+                if token is "'":
+                    continue
+                if token is ';':
+                    break
+                on.append(token)
+        except:
+            pass
+
+        return DataAccess(s, f, w, g, o, j, on)
 
     if query_type is "dataChange":
         ct, s, f, w = (None,) * 4
@@ -140,16 +165,6 @@ def query_builder(tokens, query_type):
                 continue
             if token is "'":
                 continue
-                # if quotes is 0:
-                #     quotes += 1
-                #     v.append(token)
-                #     append = False
-                #     continue
-                # if quotes is not 0:
-                #     quotes -= 1
-                #     v[-1] += token
-                #     append = True
-                #     continue
             if append:
                 v.append(token)
             else:
