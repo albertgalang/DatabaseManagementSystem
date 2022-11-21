@@ -17,55 +17,49 @@ def main(argv):
     parser = Parser()
     execute = Executer()
 
-
     file_detected = len(argv) > 1
-    if file_detected:
-        file_path = argv[1]
-        try:
-            with open(file_path, 'r') as file:
-                inputs = file.readlines()
-        except FileNotFoundError:
-            print("Invalid file path.")
+    inputs = None
+    while True:
+        # build input.
+        # Input could come from file or manual input in CLI.
+        if file_detected:
+            file_path = argv[1]
+            try:
+                with open(file_path, 'r') as file:
+                    inputs = file.readlines()
+            except FileNotFoundError:
+                print("Invalid file path.")
+            else:
+                for inp in inputs:
+                    if inp.strip().lower() == ".exit":
+                        print("All done.")
+                        return
         else:
-            for inp in inputs:
-                if inp.strip().lower() == ".exit":
-                    print("All done.")
-                    return
+            inputs = input()
 
-                # build input
-                if parser.validate(inp) is False:
-                    continue
-
-                query = parser.query
-                parser.clean()  # remove saved query in parser
-
-                query = parser.parse(query)
-                context = execute.create_context(query, settings)
-                # result = context["run"](*context["params"])
-                result = execute.run(context)
-                if result:
-                    print(result.to_string())
-    else:
-        while True:
-            inp = input()
-
-            if inp.lower() == ".exit":
+            if inputs.lower() == ".exit":
                 print("All done.")
                 break
 
-            # build input
-            if parser.validate(inp) is False:
-                continue
+        # initial validation of input
+        if parser.validate(inputs) is False:
+            continue
 
-            query = parser.query
-            parser.clean()  # remove saved query in parser
+        query = parser.query
+        parser.clean()  # remove saved query in parser
 
+        try:
             query = parser.parse(query)
             context = execute.create_context(query, settings)
-            # result = context["run"](*context["params"])
             result = execute.run(context)
             if result:
                 print(result.to_string())
+
+            # Exit program when a file is used.
+            if file_detected:
+                break
+        except:
+            print("Invalid input.")
 
 
 if __name__ == "__main__":

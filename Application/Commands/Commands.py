@@ -450,6 +450,9 @@ def get_table(table, settings):
             table_serialized = json.load(table)
             table = deserialize(table_serialized)
         return table
+    else:
+        print(f"{table[0]} table does not exist.")
+        return None
 
 
 # retrieve tables.
@@ -466,10 +469,14 @@ def get_tables(tables, settings):
                 tables_instance[table] = deserialize(_table_serialized)
         # else means that the table does not exist. Possibly an alias.
         else:
-            alias = table
-            i = tables.index(alias)
-            tables_instance[alias] = tables_instance[tables[i - 1]]
-            del tables_instance[tables[i - 1]]
+            try:
+                alias = table
+                i = tables.index(alias)
+                tables_instance[alias] = tables_instance[tables[i - 1]]
+                del tables_instance[tables[i - 1]]
+            except:
+                print(f"Invalid table/s detected.")
+                return None
     return tables_instance
 
 

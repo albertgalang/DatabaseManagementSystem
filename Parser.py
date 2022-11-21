@@ -70,20 +70,14 @@ class Parser:
                 clean_input_validated += char.lower()
             if parenthesis > 0 or quotes > 0:
                 clean_input_validated += char
-            # if quotes is 0:
-            #     clean_input_validated += char.lower()
-            # if quotes > 0:
-            #     clean_input_validated += char
+
+        if self.query:
+            self.query += " " + clean_input_validated
+        else:
+            self.query += clean_input_validated
+
         if clean_input_validated[-1] is not ';':
-            if self.query:
-                self.query += " " + clean_input_validated
-            else:
-                self.query += clean_input_validated
             return False
         else:
-            if self.query:
-                self.query += " " + clean_input_validated
-            else:
-                self.query += clean_input_validated
             return True
 
