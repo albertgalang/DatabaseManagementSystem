@@ -7,6 +7,8 @@ class Table:
         self.metadata = metadata
         self.records = records
 
+    title = None
+
     # Creates a string representation of the data in the Table.
     def to_string(self):
         header = ""
@@ -27,6 +29,7 @@ class Table:
 
         return header + records
 
+
 # Serialize table instance into a Json format.
 def serialize(table):
     serialized = {
@@ -34,6 +37,7 @@ def serialize(table):
         "records": table.records
     }
     return serialized
+
 
 # returns a Table object from a Json format.
 def deserialize(json):

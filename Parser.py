@@ -1,5 +1,5 @@
 from Application.Commands.Commands import commands, expects_params_commands, data_access_commands, database_entities, \
-    metadata_commands, data_change_commands, insert_commands
+    metadata_commands, data_change_commands, insert_commands, transaction_commands
 from Application.Models.Query import query_builder
 from Services.Utils import clean
 
@@ -47,14 +47,25 @@ class Parser:
             return query_builder(tokens, "dataChange")
         if tokens[0] in insert_commands:
             return query_builder(tokens, "insert")
+        if tokens[0] in transaction_commands:
+            return query_builder(tokens, "transaction")
 
     # validates incoming inputs
     def validate(self, inp):
+        if inp == '':
+            return False
+
         clean_input = clean(inp, "string")
         clean_input_validated = ""
         parenthesis = 0
         quotes = 0
+        dash = 0
         for char in clean_input:
+            if dash == 2:
+                clean_input_validated = clean_input_validated[:-3]
+                break
+            if char is '-':
+                dash += 1
             if char is '(':
                 parenthesis += 1
             if char is ')':

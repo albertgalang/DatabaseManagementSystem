@@ -3,6 +3,7 @@ import os
 
 from Application.Models.Table import Table, serialize, deserialize
 from Application.Variables import DBMS_PATH
+from Services.Utils import is_lock
 
 # STATIC variables
 # used to check for command words
@@ -59,6 +60,12 @@ join_commands = {
     "outer",
     "left",
     "right"
+}
+
+transaction_commands = {
+    "transaction",
+    "begin",
+    "commit"
 }
 
 # data access query execution
@@ -354,6 +361,11 @@ def update(query, settings):
         print("No database being used.")
         return
 
+    # A locked table will not update
+    if is_lock(query.from_key, settings["database"]):
+        print(f"Error: Table {query.from_key} is locked!")
+        return
+
     table = get_table([query.from_key], settings)
 
     # where
@@ -377,10 +389,16 @@ def update(query, settings):
                 counter += 1
                 record[set_key_index] = query.set_key[2]
 
-        database = settings["database"]
-        table_title = query.from_key
-        with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
-            table_file.write(json.dumps(serialize(table)))
+        # an active transaction will cache the changes instead of saving permanently
+        if settings["transaction"] is True:
+            table.title = query.from_key
+            settings["cache"][table.title] = table
+            table_lock(table, settings)
+        else:
+            database = settings["database"]
+            table_title = query.from_key
+            with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
+                table_file.write(json.dumps(serialize(table)))
 
         print(f"{counter} {'records' if counter > 1 else 'record'} modified.")
 
@@ -434,6 +452,11 @@ def insert(query, settings):
     table = get_table([table_title], settings)
     table.records.append(query.values)
 
+    if settings["transaction"] is True:
+        settings["cache"][table.title] = table
+        print("1 new record inserted.")
+        return
+
     database = settings["database"]
     with open(f"DBMS/{database}/{table_title}.txt", "w") as table_file:
         table_file.write(json.dumps(serialize(table)))
@@ -446,10 +469,11 @@ def get_table(table, settings):
     check_path = os.path.abspath(f"{DBMS_PATH}/{database.strip()}/{table[0]}.txt")
     is_exist = os.path.exists(check_path)
     if is_exist:
-        with open(f"./DBMS/{database.strip()}/{table[0]}.txt") as table:
-            table_serialized = json.load(table)
-            table = deserialize(table_serialized)
-        return table
+        with open(f"./DBMS/{database.strip()}/{table[0]}.txt") as _table:
+            table_serialized = json.load(_table)
+            tbl = deserialize(table_serialized)
+            tbl.title = table[0]
+        return tbl
     else:
         print(f"{table[0]} table does not exist.")
         return None
@@ -633,6 +657,50 @@ def table_query(select_cond, from_table, settings):
             print(ss[:-2])
     else:
         print(f"table {from_table} does not exist.")
+
+
+# Sets the transaction settings to True
+# Indicate that a transaction is started/in progress
+def begin_transaction(settings):
+    settings["transaction"] = True
+    print("Transaction starts.")
+
+
+# Commits a transaction
+# Any updates to tables will be saved permanently.
+# Updated data is in cache
+def commit_transaction(settings):
+    cache = settings["cache"]
+
+    for table in cache.items():
+        database = settings["database"]
+        with open(f"DBMS/{database}/{table[1].title}.txt", "w") as table_file:
+            table_file.write(json.dumps(serialize(table[1])))
+        table_unlock(table[1], settings)
+
+    settings["transaction"] = False  # End transaction
+    settings["cache"] = {}  # Empty cache
+    if cache:
+        print("Transaction committed.")
+    else:
+        print("Transaction abort.")
+
+
+# Lock a table by creating a lock file
+def table_lock(table, settings):
+    database = settings["database"]
+    os.system(f"cd DBMS/{database} && touch {table.title}.lock")
+
+
+# Unlock a table by removing the lock file
+def table_unlock(table, settings):
+    database = settings["database"]
+    check_path = os.path.abspath(f"./DBMS/{database}/{table.title}.lock")
+    is_exist = os.path.exists(check_path)
+    if is_exist:
+        os.system(f"rm DBMS/{database}/{table.title}.lock")
+
+
 
 
 # inequalities function delegate

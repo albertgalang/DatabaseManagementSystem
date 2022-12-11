@@ -2,7 +2,7 @@ import sys
 from fileinput import filename
 
 from Parser import Parser
-from Executer import Executer
+from Executor import Executor
 
 
 # Main entry of the application
@@ -13,9 +13,13 @@ def main(argv):
     # - make sure DBMS folder exists
     # - settings
     # - parser
-    settings = {"database": None}
+    settings = {
+        "database": None,
+        "transaction": False,
+        "cache": {}
+    }
     parser = Parser()
-    execute = Executer()
+    execute = Executor()
 
     file_detected = len(argv) > 1
     inputs = None

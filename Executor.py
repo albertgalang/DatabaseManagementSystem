@@ -1,11 +1,11 @@
 from Application.Commands.Commands import *
-from Application.Models.Query import Metadata, DataAccess, Insert, DataChange
+from Application.Models.Query import Metadata, DataAccess, Insert, DataChange, Transaction
 
 
-# Executer class
+# Executor class
 # Adds execution context to the parsed query.
 # This allows for function mapping based on commands and its respective parameters.
-class Executer:
+class Executor:
     def __int__(self):
         pass
 
@@ -20,6 +20,8 @@ class Executer:
             self.command_context["dataChange"](self, query, settings, context)
         if isinstance(query, Insert):
             self.command_context["insert"](self, query, settings, context)
+        if isinstance(query, Transaction):
+            self.command_context["transaction"](self, query, settings, context)
         return context
 
     # Data access query type command context
@@ -91,6 +93,16 @@ class Executer:
             context["run"] = alter_table
             context["params"] = [metadata.title, metadata.params, settings]
 
+    # transaction command execution context
+    def transaction_command_context(self, query, settings, context):
+        if query.begin is True:
+            context["run"] = begin_transaction
+            context["params"] = [settings]
+
+        if query.commit is True:
+            context["run"] = commit_transaction
+            context["params"] = [settings]
+
     # runs the generated execution context
     def run(self, context):
         return context["run"](*context["params"])
@@ -107,5 +119,6 @@ class Executer:
         "use": use_command_context,
         "dataAccess": data_access_command_context,
         "dataChange": data_change_command_context,
-        "insert": insert_command_context
+        "insert": insert_command_context,
+        "transaction": transaction_command_context
     }

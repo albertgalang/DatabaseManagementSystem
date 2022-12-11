@@ -36,6 +36,11 @@ class Insert:
         self.title = title
         self.values = values
 
+class Transaction:
+    def __init__(self, begin, commit):
+        self.begin = begin
+        self.commit = commit
+
 
 primitives = ["int", "float"]
 primitives_expects_param = ["varchar", "char"]
@@ -171,6 +176,17 @@ def query_builder(tokens, query_type):
                 v[-1] += token
 
         return Insert(t, v)
+
+    if query_type is "transaction":
+        b, c = (False,) * 2
+
+        if tokens[0] == "begin" and tokens[1] == "transaction":
+            b = True
+            return Transaction(b, c)
+
+        if tokens[0] == "commit":
+            c = True
+            return Transaction(b, c)
 
 
 # retrieves parameters from () encapsulated values.
